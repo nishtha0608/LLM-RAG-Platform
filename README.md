@@ -63,3 +63,4 @@ Operator / Sealed Secrets in production instead of committing rendered Secrets t
 All configuration is via environment variables (see `.env.example` / `app/config.py`), including
 `LLM_PROVIDER` (`anthropic` | `ollama`), chunking/retrieval tuning, and rate limits.
 # LLM-RAG-Platform
+# LLM-RAG-Platform
