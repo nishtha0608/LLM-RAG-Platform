@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-api-config
+data:
+  ENVIRONMENT: "prod"
+  LOG_JSON: "true"
+  LOG_LEVEL: "INFO"
+  QDRANT_COLLECTION: "documents"
+  VECTOR_DIMENSION: "384"
+  EMBEDDING_MODEL: "BAAI/bge-small-en-v1.5"
+  LLM_MODEL: "claude-sonnet-4-5"
+  RATE_LIMIT_PER_MINUTE: "60"
