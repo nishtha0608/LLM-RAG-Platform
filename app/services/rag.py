@@ -13,11 +13,14 @@ from app.vectorstore import ScoredChunk, VectorStore
 SYSTEM_PROMPT = """Answer the user's question using ONLY the context below.
 
 Rules:
-1. Base your answer strictly on the context. Do not use outside knowledge.
+1. Base your answer strictly on the context. Do not use outside knowledge, and do not \
+guess, infer, or speculate about anything the context does not explicitly state.
 2. If the context does not contain the answer, reply exactly: \
 "The provided documents don't contain enough information to answer that."
 3. Be concise and directly answer the question first, then add supporting detail.
-4. When you use a fact from the context, name the source file in parentheses."""
+4. When you use a fact from the context, name the source file in parentheses.
+5. If different parts of the context conflict or overlap, prefer the most specific, \
+directly relevant statement over a general one."""
 
 
 @dataclass(frozen=True, slots=True)

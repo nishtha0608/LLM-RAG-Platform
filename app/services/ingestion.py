@@ -1,11 +1,17 @@
 """Document ingestion: extract text, chunk it, embed it, and index it."""
 
+import re
 import uuid
 from dataclasses import dataclass
 
 from app.config import get_settings
 from app.services.embedding import EmbeddingProvider
 from app.vectorstore import VectorRecord, VectorStore, new_chunk_id
+
+# PDF extraction sometimes glues two sentences together with no whitespace at all
+# (e.g. "...Act, 1996.Disputes shall..."), which otherwise defeats sentence splitting.
+_GLUED_SENTENCE_RE = re.compile(r"(?<=[.!?])(?=[A-Z0-9])")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,24 +35,63 @@ def extract_text(raw_bytes: bytes, content_type: str) -> str:
     raise ValueError(f"Unsupported content type: {content_type}")
 
 
+def _hard_split(text: str, chunk_size: int, overlap: int) -> list[str]:
+    pieces: list[str] = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        pieces.append(text[start:end])
+        if end == len(text):
+            break
+        start = end - overlap
+    return pieces
+
+
+def _split_into_units(text: str, chunk_size: int, overlap: int) -> list[str]:
+    """Split text into sentence-level units, preserving line breaks as sentence
+    boundaries too, so unrelated clauses/sections don't get silently fused
+    together the way a blind whitespace collapse would."""
+    units: list[str] = []
+    for line in text.splitlines():
+        deglued = _GLUED_SENTENCE_RE.sub(" ", line)
+        normalized = " ".join(deglued.split())
+        if not normalized:
+            continue
+        for sentence in _SENTENCE_SPLIT_RE.split(normalized):
+            if not sentence:
+                continue
+            if len(sentence) > chunk_size:
+                units.extend(_hard_split(sentence, chunk_size, overlap))
+            else:
+                units.append(sentence)
+    return units
+
+
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[TextChunk]:
     if overlap >= chunk_size:
         raise ValueError("chunk_overlap must be smaller than chunk_size")
 
-    normalized = " ".join(text.split())
-    if not normalized:
+    units = _split_into_units(text, chunk_size, overlap)
+    if not units:
         return []
 
     chunks: list[TextChunk] = []
-    start = 0
     index = 0
-    while start < len(normalized):
-        end = min(start + chunk_size, len(normalized))
-        chunks.append(TextChunk(text=normalized[start:end], index=index))
-        if end == len(normalized):
-            break
-        start = end - overlap
+    current = ""
+    for unit in units:
+        candidate = f"{current} {unit}".strip() if current else unit
+        if len(candidate) <= chunk_size:
+            current = candidate
+            continue
+        chunks.append(TextChunk(text=current, index=index))
         index += 1
+        tail = current[-overlap:] if overlap else ""
+        current = f"{tail} {unit}".strip() if tail else unit
+        if len(current) > chunk_size:
+            current = unit
+
+    if current:
+        chunks.append(TextChunk(text=current, index=index))
     return chunks
 
 
