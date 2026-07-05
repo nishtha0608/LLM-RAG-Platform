@@ -3,8 +3,8 @@
 import logging
 import sys
 import uuid
-from contextvars import ContextVar
 from collections.abc import MutableMapping
+from contextvars import ContextVar
 from typing import Any, cast
 
 import structlog
