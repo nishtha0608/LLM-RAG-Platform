@@ -10,7 +10,13 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import CurrentUser, get_chat_repository, get_rag_service
 from app.models import ChatMessage, ChatSession, MessageRole
 from app.repositories import ChatRepository
-from app.schemas import ChatMessageCreate, ChatMessageRead, ChatSessionCreate, ChatSessionRead
+from app.schemas import (
+    ChatMessageCreate,
+    ChatMessageRead,
+    ChatSessionCreate,
+    ChatSessionRead,
+    QueryHistoryItem,
+)
 from app.services.rag import RagService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -32,6 +38,17 @@ async def list_sessions(
 ) -> list[ChatSessionRead]:
     sessions = await chat.list_sessions(current_user.id)
     return [ChatSessionRead.model_validate(session) for session in sessions]
+
+
+@router.get("/history", response_model=list[QueryHistoryItem])
+async def list_history(
+    current_user: CurrentUser, chat: Annotated[ChatRepository, Depends(get_chat_repository)]
+) -> list[QueryHistoryItem]:
+    messages = await chat.list_user_queries(current_user.id)
+    return [
+        QueryHistoryItem(session_id=m.session_id, content=m.content, created_at=m.created_at)
+        for m in messages
+    ]
 
 
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageRead])
@@ -67,7 +84,9 @@ async def send_message(
         ChatMessage(session_id=session.id, role=MessageRole.USER, content=payload.content)
     )
 
-    stream, citations = await rag.answer(payload.content, current_user.id, history)
+    stream, citations = await rag.answer(
+        payload.content, current_user.id, history, payload.document_ids
+    )
 
     async def event_stream() -> AsyncIterator[str]:
         collected: list[str] = []
@@ -75,7 +94,16 @@ async def send_message(
             collected.append(token)
             yield token
         full_text = "".join(collected)
-        sources = [f"{c.filename}#chunk-{c.chunk_index}" for c in citations]
+        sources = [
+            {
+                "document_id": c.document_id,
+                "filename": c.filename,
+                "chunk_index": c.chunk_index,
+                "chunk_text": c.chunk_text[:500],
+                "score": round(c.score, 4),
+            }
+            for c in citations
+        ]
         await chat.add_message(
             ChatMessage(
                 session_id=session.id,

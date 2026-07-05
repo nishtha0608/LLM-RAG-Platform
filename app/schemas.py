@@ -81,11 +81,15 @@ class ChatSessionRead(BaseModel):
 
 class ChatMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=8000)
+    document_ids: list[str] | None = Field(
+        default=None, description="Restrict retrieval to these document IDs, if provided."
+    )
 
 
 class SourceCitation(BaseModel):
     document_id: str
     filename: str
+    chunk_index: int
     chunk_text: str
     score: float
 
@@ -96,13 +100,19 @@ class ChatMessageRead(BaseModel):
     id: uuid.UUID
     role: MessageRole
     content: str
-    sources: list[str] | None
+    sources: list[SourceCitation] | None
     created_at: datetime
 
 
 class ChatQueryResponse(BaseModel):
     message: ChatMessageRead
     citations: list[SourceCitation]
+
+
+class QueryHistoryItem(BaseModel):
+    session_id: uuid.UUID
+    content: str
+    created_at: datetime
 
 
 # --- Health ---

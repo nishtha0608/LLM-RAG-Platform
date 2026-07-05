@@ -37,7 +37,12 @@ class VectorStore(Protocol):
     ) -> None: ...
 
     async def search(
-        self, query_embedding: list[float], owner_id: str, top_k: int, score_threshold: float
+        self,
+        query_embedding: list[float],
+        owner_id: str,
+        top_k: int,
+        score_threshold: float,
+        document_ids: list[str] | None = None,
     ) -> list[ScoredChunk]: ...
 
     async def delete_document(self, document_id: str) -> None: ...
@@ -96,16 +101,25 @@ class QdrantVectorStore:
         await self._client.upsert(collection_name=self._collection, points=points)
 
     async def search(
-        self, query_embedding: list[float], owner_id: str, top_k: int, score_threshold: float
+        self,
+        query_embedding: list[float],
+        owner_id: str,
+        top_k: int,
+        score_threshold: float,
+        document_ids: list[str] | None = None,
     ) -> list[ScoredChunk]:
+        must_conditions: list[models.FieldCondition] = [
+            models.FieldCondition(key="owner_id", match=models.MatchValue(value=owner_id))
+        ]
+        if document_ids:
+            must_conditions.append(
+                models.FieldCondition(key="document_id", match=models.MatchAny(any=document_ids))
+            )
+
         results = await self._client.query_points(
             collection_name=self._collection,
             query=query_embedding,
-            query_filter=models.Filter(
-                must=[
-                    models.FieldCondition(key="owner_id", match=models.MatchValue(value=owner_id))
-                ]
-            ),
+            query_filter=models.Filter(must=must_conditions),
             limit=top_k,
             score_threshold=score_threshold,
         )

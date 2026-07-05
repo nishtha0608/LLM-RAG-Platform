@@ -50,19 +50,26 @@ class RagService:
         self._llm = llm_provider
         self._settings = get_settings()
 
-    async def retrieve(self, query: str, owner_id: uuid.UUID) -> list[ScoredChunk]:
+    async def retrieve(
+        self, query: str, owner_id: uuid.UUID, document_ids: list[str] | None = None
+    ) -> list[ScoredChunk]:
         query_vector = await self._embeddings.embed_query(query)
         return await self._vector_store.search(
             query_embedding=query_vector,
             owner_id=str(owner_id),
             top_k=self._settings.retrieval_top_k,
             score_threshold=self._settings.retrieval_score_threshold,
+            document_ids=document_ids,
         )
 
     async def answer(
-        self, query: str, owner_id: uuid.UUID, history: list[dict[str, str]]
+        self,
+        query: str,
+        owner_id: uuid.UUID,
+        history: list[dict[str, str]],
+        document_ids: list[str] | None = None,
     ) -> tuple[AsyncIterator[str], list[ScoredChunk]]:
-        citations = await self.retrieve(query, owner_id)
+        citations = await self.retrieve(query, owner_id, document_ids)
         context = _build_context(citations)
         system_prompt = f"{SYSTEM_PROMPT}\n\nContext:\n{context}"
         stream = self._llm.stream_completion(

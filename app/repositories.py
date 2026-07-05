@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ChatMessage, ChatSession, Document, User
+from app.models import ChatMessage, ChatSession, Document, MessageRole, User
 
 
 class UserRepository:
@@ -87,5 +87,15 @@ class ChatRepository:
             select(ChatMessage)
             .where(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.asc())
+        )
+        return list(result.scalars().all())
+
+    async def list_user_queries(self, owner_id: uuid.UUID, limit: int = 50) -> list[ChatMessage]:
+        result = await self._session.execute(
+            select(ChatMessage)
+            .join(ChatSession, ChatMessage.session_id == ChatSession.id)
+            .where(ChatSession.owner_id == owner_id, ChatMessage.role == MessageRole.USER)
+            .order_by(ChatMessage.created_at.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())

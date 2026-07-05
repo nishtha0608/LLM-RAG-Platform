@@ -4,8 +4,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import ForeignKey, Index, String, Text
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy import JSON, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -113,7 +112,9 @@ class ChatMessage(Base):
     )
     role: Mapped[MessageRole] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    sources: Mapped[list[str] | None] = mapped_column(ARRAY(String(2048)), nullable=True)
+    sources: Mapped[list[dict[str, str | int | float]] | None] = mapped_column(
+        JSON, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     session: Mapped["ChatSession"] = relationship(back_populates="messages")
