@@ -47,6 +47,10 @@ class VectorStore(Protocol):
 
     async def delete_document(self, document_id: str) -> None: ...
 
+    async def scroll_documents(
+        self, owner_id: str, document_ids: list[str], limit: int
+    ) -> list[ScoredChunk]: ...
+
 
 class QdrantVectorStore:
     def __init__(self) -> None:
@@ -134,6 +138,37 @@ class QdrantVectorStore:
             for point in results.points
             if point.payload is not None
         ]
+
+    async def scroll_documents(
+        self, owner_id: str, document_ids: list[str], limit: int
+    ) -> list[ScoredChunk]:
+        points, _ = await self._client.scroll(
+            collection_name=self._collection,
+            scroll_filter=models.Filter(
+                must=[
+                    models.FieldCondition(key="owner_id", match=models.MatchValue(value=owner_id)),
+                    models.FieldCondition(
+                        key="document_id", match=models.MatchAny(any=document_ids)
+                    ),
+                ]
+            ),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        chunks = [
+            ScoredChunk(
+                document_id=point.payload["document_id"],
+                filename=point.payload["filename"],
+                chunk_text=point.payload["chunk_text"],
+                chunk_index=point.payload["chunk_index"],
+                score=1.0,
+            )
+            for point in points
+            if point.payload is not None
+        ]
+        chunks.sort(key=lambda c: (c.document_id, c.chunk_index))
+        return chunks
 
     async def delete_document(self, document_id: str) -> None:
         await self._client.delete(

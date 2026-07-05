@@ -49,7 +49,7 @@ class Settings(BaseSettings):
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:1b"
-    ollama_num_ctx: int = 8192
+    ollama_num_ctx: int = 16384
     ollama_num_predict: int = 1024
 
     # Ingestion
@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     # Retrieval
     retrieval_top_k: int = 5
     retrieval_score_threshold: float = 0.5
+    summary_max_chunks: int = 40
 
     # Rate limiting
     rate_limit_per_minute: int = 60

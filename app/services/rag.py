@@ -1,6 +1,7 @@
 """RAG query orchestration: retrieve relevant chunks, then generate a
 grounded answer with citations."""
 
+import re
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -9,6 +10,15 @@ from app.config import get_settings
 from app.services.embedding import EmbeddingProvider
 from app.services.llm import LLMProvider
 from app.vectorstore import ScoredChunk, VectorStore
+
+# Similarity-based top-k retrieval is the wrong strategy for "summarize the whole
+# document" style queries: it just returns whichever chunks are closest to the
+# literal query text, which can systematically miss entire sections (e.g. a
+# document's boilerplate schedules out-scoring its actual contract terms).
+_SUMMARY_INTENT_RE = re.compile(
+    r"\b(summar|overview|main points|key terms|tl;?dr|what is this document about)\b",
+    re.IGNORECASE,
+)
 
 SYSTEM_PROMPT = """Answer the user's question using ONLY the context below.
 
@@ -53,6 +63,13 @@ class RagService:
     async def retrieve(
         self, query: str, owner_id: uuid.UUID, document_ids: list[str] | None = None
     ) -> list[ScoredChunk]:
+        if document_ids and _SUMMARY_INTENT_RE.search(query):
+            return await self._vector_store.scroll_documents(
+                owner_id=str(owner_id),
+                document_ids=document_ids,
+                limit=self._settings.summary_max_chunks,
+            )
+
         query_vector = await self._embeddings.embed_query(query)
         return await self._vector_store.search(
             query_embedding=query_vector,
