@@ -16,7 +16,7 @@ from app.vectorstore import ScoredChunk, VectorStore
 # literal query text, which can systematically miss entire sections (e.g. a
 # document's boilerplate schedules out-scoring its actual contract terms).
 _SUMMARY_INTENT_RE = re.compile(
-    r"\b(summar|overview|main points|key terms|tl;?dr|what is this document about)\b",
+    r"\b(summar\w*|overview|main points|key terms|tl;?dr|what is this document about)\b",
     re.IGNORECASE,
 )
 
